@@ -17,6 +17,7 @@ import glob
 import traceback
 from forensic_support import ForensicHandler, enhanced_repository_finder
 from ccm_message_parser import CCMMessageParser
+from enhanced_wmi_parser import EnhancedWMIParser
 
 
 class WBEMRepositoryParser:
@@ -31,6 +32,7 @@ class WBEMRepositoryParser:
         self.wmi_classes = []
         self.forensic_handler = None
         self.ccm_parser = CCMMessageParser()
+        self.enhanced_wmi_parser = EnhancedWMIParser()
         
         # Ensure output directory exists
         os.makedirs(output_dir, exist_ok=True)
@@ -64,6 +66,9 @@ class WBEMRepositoryParser:
             # Parse CCM messages with enhanced parser
             self._safe_parse_component("CCM messages", self._parse_ccm_messages)
             
+            # Enhanced WMI malicious activity detection
+            self._safe_parse_component("WMI persistence analysis", self._parse_wmi_persistence)
+            
             # Parse additional files with error handling
             self._safe_parse_component("MOF files", self._parse_mof_files)
             self._safe_parse_component("additional files", self._parse_additional_files)
@@ -72,6 +77,7 @@ class WBEMRepositoryParser:
             self._write_general_csv()
             self._write_wmi_csv()
             self._write_ccm_csvs()
+            self._write_enhanced_wmi_csvs()
             self._write_log_file()
             
             self.log("Parsing completed successfully")
@@ -491,6 +497,29 @@ class WBEMRepositoryParser:
             except Exception as e:
                 self.log(f"Error parsing CCM messages from {objects_file}: {str(e)}", 'ERROR')
     
+    def _parse_wmi_persistence(self):
+        """Parse OBJECTS.DATA files for WMI persistence mechanisms."""
+        objects_files = self._find_files(['OBJECTS.DATA', 'objects.data'])
+        
+        for objects_file in objects_files:
+            self.log(f"Analyzing WMI persistence in: {objects_file}")
+            
+            try:
+                success = self.enhanced_wmi_parser.parse_objects_data(objects_file)
+                if success:
+                    self.log(f"Enhanced WMI analysis completed for {objects_file}")
+                    
+                    # Log summary of findings
+                    self.log(f"  - Persistence objects: {len(self.enhanced_wmi_parser.persistence_objects)}")
+                    self.log(f"  - Suspicious objects: {len(self.enhanced_wmi_parser.suspicious_classes)}")
+                    self.log(f"  - WQL queries: {len(self.enhanced_wmi_parser.wql_queries)}")
+                    self.log(f"  - Deleted objects: {len(self.enhanced_wmi_parser.deleted_objects)}")
+                else:
+                    self.log(f"Enhanced WMI analysis failed for {objects_file}", 'WARNING')
+                    
+            except Exception as e:
+                self.log(f"Error in enhanced WMI analysis for {objects_file}: {str(e)}", 'ERROR')
+    
     def _find_files(self, filenames):
         """Find files with given names in the repository path."""
         found_files = []
@@ -732,6 +761,28 @@ class WBEMRepositoryParser:
             self.ccm_parser.export_scheduler_messages_to_csv(scheduler_file)
             self.log(f"Written {len(self.ccm_parser.scheduler_messages)} Scheduler Messages to {scheduler_file}")
     
+    def _write_enhanced_wmi_csvs(self):
+        """Write enhanced WMI analysis CSV files."""
+        # Create subdirectory for WMI analysis results
+        wmi_analysis_dir = os.path.join(self.output_dir, 'wmi_analysis')
+        
+        try:
+            # Export enhanced WMI findings
+            self.enhanced_wmi_parser.export_results(wmi_analysis_dir)
+            
+            # Log summary of exported files
+            if self.enhanced_wmi_parser.persistence_objects:
+                self.log(f"Written {len(self.enhanced_wmi_parser.persistence_objects)} WMI persistence objects")
+            if self.enhanced_wmi_parser.suspicious_classes:
+                self.log(f"Written {len(self.enhanced_wmi_parser.suspicious_classes)} suspicious WMI objects")
+            if self.enhanced_wmi_parser.wql_queries:
+                self.log(f"Written {len(self.enhanced_wmi_parser.wql_queries)} WQL queries")
+            if self.enhanced_wmi_parser.deleted_objects:
+                self.log(f"Written {len(self.enhanced_wmi_parser.deleted_objects)} potentially deleted objects")
+                
+        except Exception as e:
+            self.log(f"Error writing enhanced WMI CSV files: {str(e)}", 'ERROR')
+    
     def _write_log_file(self):
         """Write parsing log to file."""
         log_file = os.path.join(self.output_dir, 'parsing_log.txt')
@@ -768,6 +819,11 @@ def main():
             print(f"- ccm_objects.csv: CCM objects overview (if found)")
             print(f"- ccm_recently_used_apps.csv: Recently used applications (if found)")
             print(f"- ccm_scheduler_messages.csv: Scheduler messages (if found)")
+            print(f"- wmi_analysis/: Enhanced WMI malicious activity analysis")
+            print(f"  - wmi_persistence_objects.csv: WMI persistence mechanisms")
+            print(f"  - wmi_suspicious_objects.csv: Objects with suspicious content")
+            print(f"  - wmi_wql_queries.csv: Extracted WQL queries")
+            print(f"  - wmi_deleted_objects.csv: Potentially deleted persistence objects")
             print(f"- parsing_log.txt: Detailed parsing log")
         else:
             print("Parsing failed. Check the log for details.")
