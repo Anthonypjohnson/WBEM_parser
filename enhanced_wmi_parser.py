@@ -645,16 +645,40 @@ class EnhancedWMIParser:
         
         print(f"\n[+] Results exported to: {output_dir}")
     
+    def _decode_hex_as_ascii(self, hex_string):
+        """Decode hexadecimal string as ASCII, replacing non-printable characters."""
+        try:
+            if not hex_string:
+                return ''
+            
+            # Convert hex string to bytes
+            data = bytes.fromhex(hex_string)
+            
+            # Convert to ASCII, replacing non-printable characters with dots
+            ascii_result = ''
+            for byte in data:
+                if 32 <= byte <= 126:  # Printable ASCII range
+                    ascii_result += chr(byte)
+                else:
+                    ascii_result += '.'
+            
+            return ascii_result
+        except (ValueError, TypeError):
+            return 'Invalid hex data'
+    
     def _export_persistence_objects(self, output_file):
         """Export persistence objects to CSV."""
         with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
             fieldnames = ['Type', 'Object_ID', 'File_Offset', 'Source_File', 'Timestamp',
-                         'Consumer_Type', 'Properties', 'Raw_Data']
+                         'Consumer_Type', 'Properties', 'Raw_Data', 'ASCII_Decoded']
             
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             
             for obj in self.persistence_objects:
+                raw_data = obj.get('raw_data', '')
+                ascii_decoded = self._decode_hex_as_ascii(raw_data)
+                
                 writer.writerow({
                     'Type': obj.get('type', ''),
                     'Object_ID': obj.get('object_id', ''),
@@ -663,19 +687,23 @@ class EnhancedWMIParser:
                     'Timestamp': obj.get('timestamp', ''),
                     'Consumer_Type': obj.get('consumer_type', obj.get('specific_type', '')),
                     'Properties': str(obj.get('properties', {})),
-                    'Raw_Data': obj.get('raw_data', '')
+                    'Raw_Data': raw_data,
+                    'ASCII_Decoded': ascii_decoded
                 })
     
     def _export_suspicious_objects(self, output_file):
         """Export suspicious objects to CSV."""
         with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
             fieldnames = ['Object_ID', 'File_Offset', 'Source_File', 'Suspicious_Keyword',
-                         'Context', 'Timestamp', 'Raw_Data_Sample']
+                         'Context', 'Timestamp', 'Raw_Data_Sample', 'ASCII_Decoded']
             
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             
             for obj in self.suspicious_classes:
+                raw_data_sample = obj.get('raw_data_sample', '')
+                ascii_decoded = self._decode_hex_as_ascii(raw_data_sample)
+                
                 writer.writerow({
                     'Object_ID': obj.get('object_id', ''),
                     'File_Offset': obj.get('file_offset', ''),
@@ -683,7 +711,8 @@ class EnhancedWMIParser:
                     'Suspicious_Keyword': obj.get('suspicious_keyword', ''),
                     'Context': obj.get('context', ''),
                     'Timestamp': obj.get('timestamp', ''),
-                    'Raw_Data_Sample': obj.get('raw_data_sample', '')
+                    'Raw_Data_Sample': raw_data_sample,
+                    'ASCII_Decoded': ascii_decoded
                 })
     
     def _export_wql_queries(self, output_file):

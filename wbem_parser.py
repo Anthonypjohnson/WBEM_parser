@@ -707,6 +707,27 @@ class WBEMRepositoryParser:
         except Exception:
             return 'Error'
     
+    def _decode_hex_as_ascii(self, hex_string):
+        """Decode hexadecimal string as ASCII, replacing non-printable characters."""
+        try:
+            if not hex_string:
+                return ''
+            
+            # Convert hex string to bytes
+            data = bytes.fromhex(hex_string)
+            
+            # Convert to ASCII, replacing non-printable characters with dots
+            ascii_result = ''
+            for byte in data:
+                if 32 <= byte <= 126:  # Printable ASCII range
+                    ascii_result += chr(byte)
+                else:
+                    ascii_result += '.'
+            
+            return ascii_result
+        except (ValueError, TypeError):
+            return 'Invalid hex data'
+    
     def _write_general_csv(self):
         """Write general repository data to CSV."""
         output_file = os.path.join(self.output_dir, 'wbem_general.csv')
@@ -714,13 +735,21 @@ class WBEMRepositoryParser:
         with open(output_file, 'w', newline='', encoding='utf-8') as csvfile:
             fieldnames = ['File_Path', 'File_Type', 'Record_Type', 'Object_ID', 
                          'Class_Name', 'Namespace', 'Timestamp', 'Data_Size', 
-                         'Hash_Value', 'Raw_Data_Sample']
+                         'Hash_Value', 'Raw_Data_Sample', 'ASCII_Decoded']
             
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             writer.writeheader()
             
             for row in self.general_data:
-                writer.writerow(row)
+                # Add ASCII decoded column
+                raw_data_sample = row.get('Raw_Data_Sample', '')
+                ascii_decoded = self._decode_hex_as_ascii(raw_data_sample)
+                
+                # Create new row with ASCII decoded data
+                new_row = row.copy()
+                new_row['ASCII_Decoded'] = ascii_decoded
+                
+                writer.writerow(new_row)
         
         self.log(f"Written {len(self.general_data)} records to {output_file}")
     
