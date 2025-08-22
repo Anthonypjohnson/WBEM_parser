@@ -155,3 +155,31 @@ test_data/
 output/
 results/
 logs/
+
+# WBEM Parser specific files
+*.csv
+parsing_log.txt
+forensic_analysis/
+analysis_output/
+case*_output/
+*_analysis/
+
+# Forensic image files (large binary files)
+*.dd
+*.img
+*.raw
+*.001
+*.e01
+*.ex01
+*.vmdk
+*.vhd
+*.vhdx
+*.iso
+
+# Windows repository backup files
+repository.???/
+Repository.???/
+
+# Temporary mount points
+/tmp/wbem_*
+/tmp/test_wbem_*

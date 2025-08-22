@@ -7,9 +7,11 @@ A comprehensive Python tool for parsing Windows 11 WMI (Windows Management Instr
 - **Cross-platform**: Runs on Linux systems without internet connectivity
 - **Forensic support**: Handles various input types including forensic images, mounted drives, and direct file access
 - **Comprehensive parsing**: Extracts data from INDEX.BTR, OBJECTS.DATA, mapping files, and MOF files
-- **Dual CSV output**: General repository data and WMI-specific class information
+- **Enhanced CCM parsing**: Specialized extraction of CCM_Scheduler_Messages and SCCM objects
+- **Multiple CSV outputs**: General repository data, WMI classes, and CCM-specific information
 - **Built-in libraries only**: Uses only Python standard library modules
 - **Robust error handling**: Continues parsing even with corrupted or incomplete files
+- **Forensic hash signatures**: Detects CCM objects using known forensic hash signatures
 
 ## Usage
 
@@ -49,9 +51,10 @@ python wbem_parser.py /extracted/windows/files ./analysis
 
 ### Repository Files Parsed
 - **INDEX.BTR**: Binary tree index file
-- **OBJECTS.DATA**: Object records and class data
+- **OBJECTS.DATA**: Object records and class data (with enhanced CCM parsing)
 - **MAPPING*.MAP**: Page mapping files
 - **MOF files**: Managed Object Format class definitions
+- **CCM Messages**: Configuration Manager scheduler messages and tasks
 - **Additional files**: Provider DLLs, logs, and related WMI files
 
 ## Output Files
@@ -80,6 +83,39 @@ Contains WMI class-specific information:
 - MOF_Source: Source of class definition
 - Registration_Status: Registration state
 - Instance_Count: Number of instances (if available)
+
+### ccm_objects.csv
+Contains CCM-specific object information:
+- Type: CCM object type (e.g., CCM_Scheduler_Messages)
+- Object_ID: Unique object identifier
+- Namespace: CCM namespace path
+- Source_File: Source OBJECTS.DATA file
+- File_Offset: Byte offset in source file
+- Signature_Type: Forensic signature type used for detection
+- Timestamp: Detection timestamp
+- Raw_Data_Sample: Hexadecimal sample of raw data
+
+### ccm_recently_used_apps.csv
+Contains execution evidence from CCM_RecentlyUsedApps:
+- Last_Used_Time: When application was last executed
+- Creation_Time: When record was created
+- Product_Name: Application name
+- Folder_Path: Full path to executable
+- File_Description: Application description
+- Company_Name: Software vendor
+- Last_Username: User who executed the application
+- Launch_Count: Number of times launched
+
+### ccm_scheduler_messages.csv
+Contains Configuration Manager scheduled tasks:
+- Schedule_ID: Unique schedule identifier
+- User_SID: User security identifier
+- Active_Time: When schedule becomes active
+- Expire_Time: When schedule expires
+- Target_Endpoint: WMI endpoint for message delivery
+- Triggers: Schedule trigger conditions
+- Launch_Conditions: Conditions required for execution
+- Filetime_Values: Additional timestamp values
 
 ### parsing_log.txt
 Detailed parsing log with timestamps, errors, and processing information.

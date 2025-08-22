@@ -16,6 +16,7 @@ import re
 import glob
 import traceback
 from forensic_support import ForensicHandler, enhanced_repository_finder
+from ccm_message_parser import CCMMessageParser
 
 
 class WBEMRepositoryParser:
@@ -29,6 +30,7 @@ class WBEMRepositoryParser:
         self.general_data = []
         self.wmi_classes = []
         self.forensic_handler = None
+        self.ccm_parser = CCMMessageParser()
         
         # Ensure output directory exists
         os.makedirs(output_dir, exist_ok=True)
@@ -59,6 +61,9 @@ class WBEMRepositoryParser:
             self._safe_parse_component("objects files", self._parse_objects_file)
             self._safe_parse_component("mapping files", self._parse_mapping_files)
             
+            # Parse CCM messages with enhanced parser
+            self._safe_parse_component("CCM messages", self._parse_ccm_messages)
+            
             # Parse additional files with error handling
             self._safe_parse_component("MOF files", self._parse_mof_files)
             self._safe_parse_component("additional files", self._parse_additional_files)
@@ -66,6 +71,7 @@ class WBEMRepositoryParser:
             # Write output CSVs
             self._write_general_csv()
             self._write_wmi_csv()
+            self._write_ccm_csvs()
             self._write_log_file()
             
             self.log("Parsing completed successfully")
@@ -449,6 +455,42 @@ class WBEMRepositoryParser:
                 except Exception as e:
                     self.log(f"Error processing additional file {file_path}: {str(e)}", 'WARNING')
     
+    def _parse_ccm_messages(self):
+        """Parse CCM messages from OBJECTS.DATA files using enhanced parser."""
+        objects_files = self._find_files(['OBJECTS.DATA', 'objects.data'])
+        
+        for objects_file in objects_files:
+            self.log(f"Parsing CCM messages from: {objects_file}")
+            
+            try:
+                with open(objects_file, 'rb') as f:
+                    data = f.read()
+                
+                # Use enhanced CCM parser
+                objects_found = self.ccm_parser.parse_ccm_objects(data, objects_file)
+                
+                self.log(f"Found {objects_found} CCM objects in {objects_file}")
+                self.log(f"  - {len(self.ccm_parser.recently_used_apps)} RecentlyUsedApps records")
+                self.log(f"  - {len(self.ccm_parser.scheduler_messages)} Scheduler Messages")
+                
+                # Add CCM objects to general data for comprehensive reporting
+                for ccm_obj in self.ccm_parser.ccm_objects:
+                    self.general_data.append({
+                        'File_Path': ccm_obj.get('source_file', objects_file),
+                        'File_Type': 'CCM_OBJECT',
+                        'Record_Type': ccm_obj.get('type', 'Unknown'),
+                        'Object_ID': ccm_obj.get('object_id', 'N/A'),
+                        'Class_Name': ccm_obj.get('type', 'Unknown'),
+                        'Namespace': ccm_obj.get('namespace', 'root\\ccm'),
+                        'Timestamp': ccm_obj.get('timestamp', datetime.now()),
+                        'Data_Size': ccm_obj.get('size', 0),
+                        'Hash_Value': hashlib.md5(ccm_obj.get('raw_data_sample', '').encode()).hexdigest(),
+                        'Raw_Data_Sample': ccm_obj.get('raw_data_sample', '')
+                    })
+                
+            except Exception as e:
+                self.log(f"Error parsing CCM messages from {objects_file}: {str(e)}", 'ERROR')
+    
     def _find_files(self, filenames):
         """Find files with given names in the repository path."""
         found_files = []
@@ -670,6 +712,26 @@ class WBEMRepositoryParser:
         
         self.log(f"Written {len(self.wmi_classes)} WMI classes to {output_file}")
     
+    def _write_ccm_csvs(self):
+        """Write CCM-specific CSV files."""
+        # Write CCM objects overview
+        ccm_overview_file = os.path.join(self.output_dir, 'ccm_objects.csv')
+        if self.ccm_parser.ccm_objects:
+            self.ccm_parser.export_ccm_objects_to_csv(ccm_overview_file)
+            self.log(f"Written {len(self.ccm_parser.ccm_objects)} CCM objects to {ccm_overview_file}")
+        
+        # Write RecentlyUsedApps if any found
+        if self.ccm_parser.recently_used_apps:
+            rua_file = os.path.join(self.output_dir, 'ccm_recently_used_apps.csv')
+            self.ccm_parser.export_recently_used_apps_to_csv(rua_file)
+            self.log(f"Written {len(self.ccm_parser.recently_used_apps)} RecentlyUsedApps records to {rua_file}")
+        
+        # Write SchedulerMessages if any found
+        if self.ccm_parser.scheduler_messages:
+            scheduler_file = os.path.join(self.output_dir, 'ccm_scheduler_messages.csv')
+            self.ccm_parser.export_scheduler_messages_to_csv(scheduler_file)
+            self.log(f"Written {len(self.ccm_parser.scheduler_messages)} Scheduler Messages to {scheduler_file}")
+    
     def _write_log_file(self):
         """Write parsing log to file."""
         log_file = os.path.join(self.output_dir, 'parsing_log.txt')
@@ -703,6 +765,9 @@ def main():
             print(f"Output files written to: {output_dir}")
             print(f"- wbem_general.csv: General repository data")
             print(f"- wmi_classes.csv: WMI class information")
+            print(f"- ccm_objects.csv: CCM objects overview (if found)")
+            print(f"- ccm_recently_used_apps.csv: Recently used applications (if found)")
+            print(f"- ccm_scheduler_messages.csv: Scheduler messages (if found)")
             print(f"- parsing_log.txt: Detailed parsing log")
         else:
             print("Parsing failed. Check the log for details.")
